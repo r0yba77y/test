@@ -1,0 +1,103 @@
+//@version=6
+strategy("1.3", 
+     overlay=true, 
+     initial_capital = 10000, 
+     default_qty_type = strategy.percent_of_equity, 
+     default_qty_value = 100,
+     margin_long = 0,
+     margin_short = 0)
+
+// Json
+json_long = '{"ticker":"' + syminfo.ticker + '","tf":"' + str.tostring(timeframe.period) + '","position":"long"}'
+json_short = '{"ticker":"' + syminfo.ticker + '","tf":"' + str.tostring(timeframe.period) + '","position":"short"}'
+
+// Position
+var int position = 0
+var bool position_sent = false
+var bool long = false
+var bool short = false
+
+// Ma
+ma_1 = ta.ema(close, 20)
+ma_2 = ta.hma(close, 360)
+slope = ta.hma(close, 30)
+
+// Intime
+intime = hour >= 7 and hour < 16
+
+// Delta
+delta_limit = 5
+delta_period = 5
+delta_long  = close <= ta.lowest(low, delta_period) * (1 + delta_limit / 100)
+delta_short = close >= ta.highest(high, delta_period) * (1 - delta_limit / 100)
+
+// Slope
+slope_long  = slope >= slope[1]
+slope_short = slope <= slope[1]
+
+// Donchian
+float donchian_delta = (math.abs(close - ma_2) / ma_2) * 100
+float donchian_high = ta.highest(high, 5)[2]
+float donchian_low  = ta.lowest(low, 5)[2]
+bool donchian_long  = (donchian_delta >= 0.75) or (close >= donchian_high)
+bool donchian_short = (donchian_delta >= 0.75) or (close <= donchian_low)
+
+// Kama
+int k_n = 15, int k_f = 5, int k_s = 50 
+float k_diff   = math.abs(close - close[1])
+float k_vol    = math.sum(k_diff, k_n)
+float k_change = math.abs(close - close[k_n])
+float k_er = k_vol != 0 ? k_change / k_vol : 0
+float k_sc = math.pow(k_er * (2/(k_f+1) - 2/(k_s+1)) + 2/(k_s+1), 2)
+
+// Kama
+var float kama = close
+kama := kama + k_sc * (close - kama)
+kama_long  = kama >= kama[1]
+kama_short = kama <= kama[1]
+
+// Price
+bool price_long  = close >= ma_2
+bool price_short = close <= ma_2
+
+// Position
+if ta.crossover(ma_1, ma_2)
+    position := 1
+    position_sent := false
+if ta.crossunder(ma_1, ma_2)
+    position := -1
+    position_sent := false
+
+// Signal
+if not position_sent and intime
+    long  := position == 1 and donchian_long and price_long and slope_long and delta_long and kama_long
+    short := position == -1 and donchian_short and price_short and slope_short and delta_short and kama_short
+else
+    long  := false
+    short := false
+
+// Entry
+if long
+    strategy.entry("L", strategy.long, limit=close)
+    alert(json_long, alert.freq_once_per_bar_close)
+    position_sent := true
+if short
+    strategy.entry("S", strategy.short, limit=close)
+    alert(json_short, alert.freq_once_per_bar_close)
+    position_sent := true
+
+// Ma 1
+plot(ma_1, title="MA_1", color=color.yellow)
+
+// Ma 2
+plot(ma_2, title="MA_2", color=not intime ? color.gray : color.rgb(0, 77, 221), linewidth=2)
+
+// Slope
+plot(slope, title="Slope", color=color.rgb(255, 57, 189))
+
+// Donchian
+plot(donchian_high, title="Donchian High", color=color.aqua, style=plot.style_line)
+plot(donchian_low, title="Donchian Low", color=color.aqua, style=plot.style_line)
+
+// Kama
+plot(kama, "Kama", color = kama_long ? color.lime : color.red, linewidth=2)
