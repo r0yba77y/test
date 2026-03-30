@@ -1,0 +1,33 @@
+{
+    "type":                         "sftp",
+    "save_before_upload":           true,
+    "upload_on_save":               true,
+    "sync_down_on_open":            false,
+    "sync_skip_deletes":            false,
+    "sync_same_age":                true,
+    "confirm_downloads":            false,
+    "confirm_sync":                 true,
+    "confirm_overwrite_newer":      false,
+    "host":                         "192.168.1.101",
+    "user":                         "cfn",
+    "password":                     "lamU-55%%",
+    "port":                         "22",
+    "remote_path":                  "/var/www",
+    "file_permissions":             "644",
+    "dir_permissions":              "755",
+    "connect_timeout":              30,
+    "keepalive":                    120,
+    //"ftp_passive_mode":           true,
+    //"ftp_obey_passive_host":      false,
+    //"ssh_key_file":               "~/.ssh/id_rsa",
+    //"sftp_sudo":                  false,
+    //"sftp_debug":                 false,
+    //"sftp_flags":                 ["-F", "/path/to/ssh_config"],
+    "remote_time_offset_in_hours":  0,
+    "remote_encoding":              "utf-8",
+    "allow_config_upload":          true,
+    "ignore_regexes": [
+        "/venv/",
+        ".*/venv/"
+    ]
+}

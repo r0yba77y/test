@@ -1,0 +1,84 @@
+//@version=6
+indicator("Recupero Gap (Rif. 16:00 - Linee 16-4-10)", overlay=true)
+
+// --- Parametri ---
+gap_min_threshold = input.float(1.0, "Filtro Gap Minimo %", minval=0.0, step=0.1)
+
+// --- Parametri di Tempo ---
+is_1600 = hour == 16 and minute == 0 
+is_0400 = hour == 4 and minute == 0  
+is_1000 = hour == 10 and minute == 0 
+
+// --- Variabili di Stato ---
+var float price_at_1600 = na
+var float gap_open_at_0400 = na
+var bool monitoring = false
+var float max_high_window = 0.0
+var float min_low_window = 1e10
+
+// --- Variabili Storiche ---
+var float total_pos_recovery = 0.0
+var int count_pos = 0
+var float total_neg_recovery = 0.0
+var int count_neg = 0
+
+// --- 1. Linea e Prezzo alle 16:00 ---
+if is_1600
+    price_at_1600 := close
+    line.new(bar_index, low, bar_index, high, extend=extend.both, color=color.gray, width=1)
+
+// --- 2. Inizio Finestra alle 04:00 ---
+if is_0400 and not na(price_at_1600)
+    gap_open_at_0400 := open
+    current_gap_pct = math.abs((gap_open_at_0400 - price_at_1600) / price_at_1600 * 100)
+    
+    if current_gap_pct >= gap_min_threshold
+        monitoring := true
+        max_high_window := high
+        min_low_window := low
+        // Linea Ciano di inizio monitoraggio
+        line.new(bar_index, low, bar_index, high, extend=extend.both, color=color.aqua, width=1)
+    else
+        monitoring := false
+
+// --- 3. Monitoraggio (04:00 - 10:00) ---
+if monitoring
+    max_high_window := math.max(max_high_window, high)
+    min_low_window := math.min(min_low_window, low)
+
+// --- 4. Calcolo Finale alle 10:00 ---
+if is_1000 and monitoring
+    gap_size = gap_open_at_0400 - price_at_1600
+    float daily_rec = na
+    color label_color = color.gray
+
+    if gap_size > 0 // Gap Up
+        daily_rec := math.max(0, math.min(100, (gap_open_at_0400 - min_low_window) / gap_size * 100))
+        total_pos_recovery += daily_rec
+        count_pos += 1
+        label_color := color.aqua
+    else if gap_size < 0 // Gap Down
+        daily_rec := math.max(0, math.min(100, (max_high_window - gap_open_at_0400) / math.abs(gap_size) * 100))
+        total_neg_recovery += daily_rec
+        count_neg += 1
+        label_color := color.purple
+    
+    // Linea Arancione di fine finestra
+    line.new(bar_index, low, bar_index, high, extend=extend.both, color=color.orange, width=1)
+    
+    if not na(daily_rec)
+        label.new(bar_index, high, text="Rec: " + str.tostring(daily_rec, "0") + "%", 
+             color=label_color, textcolor=color.white, style=label.style_label_down, yloc=yloc.abovebar)
+    
+    monitoring := false
+
+// --- Tabella Statistiche ---
+var table stats = table.new(position.top_right, 2, 3, bgcolor=color.new(color.black, 70), border_width=1)
+if barstate.islast
+    avg_pos = count_pos > 0 ? total_pos_recovery / count_pos : 0
+    avg_neg = count_neg > 0 ? total_neg_recovery / count_neg : 0
+    table.cell(stats, 0, 0, "Rif: Chiusura 16:00", text_color=color.yellow)
+    table.cell(stats, 0, 1, "Media Rec. Gap Pos:", text_color=color.aqua)
+    table.cell(stats, 1, 1, str.tostring(avg_pos, "0.00") + "% (" + str.tostring(count_pos) + " casi)", text_color=color.white)
+    table.cell(stats, 0, 2, "Media Rec. Gap Neg:", text_color=color.purple)
+    table.cell(stats, 1, 2, str.tostring(avg_neg, "0.00") + "% (" + str.tostring(count_neg) + " casi)", text_color=color.white)
